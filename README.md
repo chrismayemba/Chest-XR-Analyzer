@@ -1,124 +1,90 @@
-# CXR-LLaVA: Chest X-ray Large Language and Vision Assistant
+# Chest X-ray Caption Drafting (research prototype)
 
-CXR-LLaVA is an advanced AI system that combines large language models and computer vision to analyze chest X-ray images. Built on the LLaVA architecture, it provides detailed medical analysis and natural language descriptions of radiological findings.
+A small FastAPI service that drafts a free-text caption for a chest X-ray
+image using [BLIP](https://huggingface.co/Salesforce/blip-image-captioning-base)
+adapted with a LoRA fine-tune on a filtered, chest/thorax subset of
+[ROCOv2-radiology](https://huggingface.co/datasets/eltorio/ROCOv2-radiology).
 
-## Features
+> **This is a research prototype for caption drafting, not a diagnostic tool.**
+> Outputs are unreviewed AI drafts. See
+> [`model/roco_chest_xray_lora/README.md`](model/roco_chest_xray_lora/README.md)
+> for training data, evaluation loss, and limitations before using this for
+> anything beyond experimentation.
 
-- **Advanced X-ray Analysis**: Detailed analysis of chest X-rays using state-of-the-art vision-language models
-- **Natural Language Reports**: Generate comprehensive reports in natural language
-- **Medical Context**: Specialized in medical terminology and radiological findings
-- **High Performance**: GPU-accelerated inference with caching
-- **Secure**: JWT-based authentication and rate limiting
-- **Batch Processing**: Support for analyzing multiple images asynchronously
+## What this actually is
 
-## Prerequisites
+- **Model:** `Salesforce/blip-image-captioning-base` + a LoRA adapter
+  (r=16, alpha=32, target modules `query`/`value`, ~4.7 MB of adapter weights)
+- **Training data:** ROCOv2-radiology, filtered to captions containing both a
+  chest/thorax term and an x-ray/radiograph term
+- **Best validation loss:** 5.90 — an early-stage checkpoint, not a converged model
+- **API:** one endpoint that takes an uploaded image and returns a drafted caption,
+  plus a `/health` endpoint that reports whether the model actually loaded
 
-- Python 3.8+
-- PyTorch
-- CUDA-capable GPU (recommended)
-- 16GB+ RAM
+There is no multi-head classifier, no segmentation output, no attention-map
+visualization, and no LLaVA-7B backbone. Earlier versions of this repo
+referenced that architecture in the README while the actual code only
+contained unimplemented stub imports — the code below is what's real and runs.
 
-## Installation
+## Project layout
 
-1. Clone the repository:
-```bash
-git clone https://github.com/Greprovad-AI/Chest-X-Ray-Analyzer.git
-cd Chest-X-Ray-Analyzer
+```
+app/            FastAPI application (main.py, model.py, schemas.py)
+static/         Upload UI served at /
+model/          The LoRA adapter + its model card (roco_chest_xray_lora/)
+training/       Scripts to reproduce the adapter from ROCOv2-radiology
+tests/          API tests (model is mocked, no GPU/download required)
+docker/         Dockerfile for the API service
 ```
 
-2. Install dependencies:
+## Running locally
+
 ```bash
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-3. Configure the application:
-- Copy `config/api_config.yaml.example` to `config/api_config.yaml`
-- Update the configuration values as needed
+The first request downloads the ~900 MB BLIP base model from the Hugging
+Face Hub if it isn't already cached. If that download fails (no network,
+no HF cache), the app still starts — check `GET /health` for status
+instead of a silent crash.
 
-4. Start the server:
-```bash
-python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-## API Usage
-
-### Authentication
+Open `http://localhost:8000` for the upload UI, or call the API directly:
 
 ```bash
-# Get access token
-curl -X POST "http://localhost:8000/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=your_username&password=your_password"
+python download_sample.py   # fetches a sample chest X-ray into test_images/
+curl -X POST "http://localhost:8000/caption" -F "file=@test_images/sample_chest_xray.jpg"
 ```
 
-### Analyze Single Image
-
-```bash
-curl -X POST "http://localhost:8000/analyze" \
-  -H "Authorization: Bearer your_token" \
-  -F "file=@path/to/xray.jpg" \
-  -F "prompt=Analyze this chest X-ray and describe any findings in detail."
-```
-
-### Batch Analysis
-
-```bash
-curl -X POST "http://localhost:8000/batch/analyze" \
-  -H "Authorization: Bearer your_token" \
-  -F "files=@xray1.jpg" \
-  -F "files=@xray2.jpg"
-```
-
-### Get Available Prompts
-
-```bash
-curl -X GET "http://localhost:8000/prompts" \
-  -H "Authorization: Bearer your_token"
-```
-
-## Model Architecture
-
-CXR-LLaVA is based on the LLaVA (Large Language and Vision Assistant) architecture, fine-tuned specifically for chest X-ray analysis. It combines:
-
-- Vision Encoder: Pre-trained vision transformer for X-ray image understanding
-- Language Model: Large language model specialized in medical terminology
-- Cross-modal Fusion: Advanced attention mechanisms for combining visual and textual information
-
-## Rate Limiting
-
-- Single analysis: 10 requests/minute
-- Batch analysis: 2 requests/minute
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-If you use CXR-LLaVA in your research, please cite:
-
-```bibtex
-@misc{cxr-llava-2023,
-  author = {Greprovad AI},
-  title = {CXR-LLaVA: Chest X-ray Large Language and Vision Assistant},
-  year = {2023},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/Greprovad-AI/Chest-X-Ray-Analyzer}}
+```json
+{
+  "caption": "chest x-ray showing ...",
+  "model_id": "Salesforce/blip-image-captioning-base+lora:roco_chest_xray_lora",
+  "generation_time_ms": 842.1,
+  "disclaimer": "This caption is generated by a research-stage model and has NOT been reviewed by a clinician. It is not a diagnosis and must not be used for clinical decision-making."
 }
 ```
 
-## Acknowledgments
+## Docker
 
-- LLaVA framework
-- PyTorch
-- FastAPI
-- Hugging Face Transformers
+```bash
+docker compose up --build
+```
+
+## Tests
+
+```bash
+pytest
+```
+
+Tests mock the model itself, so they run without downloading BLIP weights.
+
+## Reproducing / retraining the adapter
+
+See [`training/README.md`](training/README.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

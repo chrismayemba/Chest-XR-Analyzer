@@ -1,0 +1,8 @@
+{
+  "purpose": "research_only_caption_drafting",
+  "dataset": "eltorio/ROCOv2-radiology",
+  "base_model": "Salesforce/blip-image-captioning-base",
+  "filter": "caption contains chest/thorax term and x-ray/radiograph term",
+  "warning": "ROCOv2 captions are not clinical reports; generated text requires expert review.",
+  "best_validation_loss": 5.904336261749267
+}
