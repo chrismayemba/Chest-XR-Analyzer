@@ -1,3 +1,15 @@
+---
+title: Chest X-ray BLIP Caption API
+emoji: 🩻
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+suggested_hardware: cpu-basic
+models:
+  - Salesforce/blip-image-captioning-base
+---
+
 # Chest X-ray Caption Drafting (research prototype)
 
 A small FastAPI service that drafts a free-text caption for a chest X-ray
@@ -72,6 +84,17 @@ curl -X POST "http://localhost:8000/caption" -F "file=@test_images/sample_chest_
 ```bash
 docker compose up --build
 ```
+
+## Private Hugging Face Space
+
+This repository is ready to run as a private Docker Space. Create the Space
+with the Docker SDK, keep its visibility private, and push this repository to
+the Space repository. The public container port is `7860`.
+
+Use CPU Basic for a no-hourly-cost prototype. Caption generation will be
+slower than on a GPU. A private Space must be called with a Hugging Face read
+token, which should be kept in a server-side secret and never embedded in
+browser JavaScript.
 
 ## Tests
 
