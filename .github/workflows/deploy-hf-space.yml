@@ -1,0 +1,70 @@
+name: Deploy private Hugging Face Space
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Hugging Face Hub client
+        run: pip install "huggingface-hub>=0.34,<2"
+
+      - name: Create and upload private Docker Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          SPACE_ID: monsesolutions/chest-xray-blip-api
+        run: |
+          python - <<'PY'
+          import os
+
+          from huggingface_hub import HfApi
+
+          token = os.environ.get("HF_TOKEN", "").strip()
+          space_id = os.environ.get("SPACE_ID", "").strip()
+          if not token:
+              raise SystemExit("Missing repository secret: HF_TOKEN")
+          if "/" not in space_id:
+              raise SystemExit("SPACE_ID must use the owner/name format")
+
+          api = HfApi(token=token)
+          api.create_repo(
+              repo_id=space_id,
+              repo_type="space",
+              space_sdk="docker",
+              private=True,
+              exist_ok=True,
+          )
+          api.update_repo_settings(
+              repo_id=space_id,
+              repo_type="space",
+              private=True,
+          )
+          api.upload_folder(
+              folder_path=".",
+              repo_id=space_id,
+              repo_type="space",
+              commit_message="Deploy BLIP chest X-ray caption API",
+              allow_patterns=[
+                  "README.md",
+                  "Dockerfile",
+                  "requirements-space.txt",
+                  ".dockerignore",
+                  "app/**",
+                  "static/**",
+                  "model/**",
+              ],
+          )
+          print(f"Space deployed: https://huggingface.co/spaces/{space_id}")
+          PY
