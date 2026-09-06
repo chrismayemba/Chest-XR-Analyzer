@@ -31,6 +31,19 @@ def test_health_reports_unloaded_model_gracefully():
     assert body["status"] == "degraded"
 
 
+def test_api_requires_bearer_token_when_configured(monkeypatch):
+    monkeypatch.setenv("BLIP_API_TOKEN", "test-api-token")
+
+    unauthorized = client.get("/health")
+    assert unauthorized.status_code == 401
+
+    authorized = client.get(
+        "/health",
+        headers={"Authorization": "Bearer test-api-token"},
+    )
+    assert authorized.status_code == 200
+
+
 def test_caption_rejects_non_image_upload():
     res = client.post(
         "/caption",
