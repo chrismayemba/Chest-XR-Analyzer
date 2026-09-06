@@ -13,10 +13,13 @@ and limitations.
 from __future__ import annotations
 
 import io
+import hmac
 import logging
+import os
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
@@ -50,12 +53,29 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+def require_api_token(
+    authorization: Annotated[str | None, Header()] = None,
+) -> None:
+    """Require the production bearer token when BLIP_API_TOKEN is configured."""
+    api_token = os.environ.get("BLIP_API_TOKEN", "").strip()
+    if not api_token:
+        return
+
+    expected = f"Bearer {api_token}"
+    if authorization is None or not hmac.compare_digest(authorization, expected):
+        raise HTTPException(status_code=401, detail="Missing or invalid API token.")
+
+
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
     return FileResponse("static/index.html")
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    dependencies=[Depends(require_api_token)],
+)
 async def health() -> HealthResponse:
     """Report whether the model actually loaded, so failures are visible, not silent."""
     return HealthResponse(
@@ -68,7 +88,11 @@ async def health() -> HealthResponse:
     )
 
 
-@app.post("/caption", response_model=CaptionResponse)
+@app.post(
+    "/caption",
+    response_model=CaptionResponse,
+    dependencies=[Depends(require_api_token)],
+)
 async def caption_xray(file: UploadFile = File(...)) -> CaptionResponse:
     """
     Generate a draft caption for an uploaded chest X-ray image.
