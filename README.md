@@ -85,16 +85,37 @@ curl -X POST "http://localhost:8000/caption" -F "file=@test_images/sample_chest_
 docker compose up --build
 ```
 
-## Private Hugging Face Space
+## Private Modal deployment
+
+The repository includes `modal_app.py` and a manual GitHub Actions workflow at
+`.github/workflows/deploy-modal.yml`. The deployment uses two physical CPU
+cores, 4 GiB of memory, at most one container, and scales to zero while idle.
+The public Modal URL is protected by the `BLIP_API_TOKEN` bearer token.
+
+Add these repository secrets in **Settings → Secrets and variables → Actions**:
+
+- `MODAL_TOKEN_ID`
+- `MODAL_TOKEN_SECRET`
+- `BLIP_API_TOKEN` (generate a long random value; it is shared only with the
+  private frontend server)
+
+Then run **Actions → Deploy private BLIP API to Modal → Run workflow**. The
+deployment log prints the generated `https://...modal.run` URL. Calls to the
+protected endpoints must include this header:
+
+```text
+Authorization: Bearer <BLIP_API_TOKEN>
+```
+
+## Private Hugging Face Space (requires a paid account for Docker)
 
 This repository is ready to run as a private Docker Space. Create the Space
 with the Docker SDK, keep its visibility private, and push this repository to
 the Space repository. The public container port is `7860`.
 
-Use CPU Basic for a no-hourly-cost prototype. Caption generation will be
-slower than on a GPU. A private Space must be called with a Hugging Face read
-token, which should be kept in a server-side secret and never embedded in
-browser JavaScript.
+Caption generation will be slower on CPU than on a GPU. A private Space must
+be called with a Hugging Face read token, which should be kept in a server-side
+secret and never embedded in browser JavaScript.
 
 ## Tests
 
